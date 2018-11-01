@@ -1,21 +1,21 @@
 #########################################
 #                                       #
-# baidu-cloud-controller-manager        #
+# baiducloud-controller-manager        #
 #                                       #
 #########################################
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: baidu-cloud-controller-manager
+  name: baiducloud-controller-manager
   namespace: kube-system
 spec:
   selector:
     matchLabels:
-      k8s-app: baidu-cloud-controller-manager
+      k8s-app: baiducloud-controller-manager
   template:
     metadata:
       labels:
-        k8s-app: baidu-cloud-controller-manager
+        k8s-app: baiducloud-controller-manager
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
