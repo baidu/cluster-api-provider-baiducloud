@@ -41,11 +41,11 @@ spec:
           operator: Exists
           tolerationSeconds: 300
       containers:
-      - image: baidu/baidu-cloud-controller-manager:v0.1.7
-        name: baidu-cloud-controller-manager
+      - image: baidu/baiducloud-controller-manager:v0.1.7
+        name: baiducloud-controller-manager
         command:
-          - "/bin/baidu-cloud-controller-manager"
-          - "--cloud-provider=baidu"
+          - "/bin/baiducloud-controller-manager"
+          - "--cloud-provider=baiducloud"
           - "--leader-elect=true"
         resources:
           requests:
@@ -59,7 +59,7 @@ spec:
           - name: DO_ACCESS_TOKEN
             valueFrom:
               secretKeyRef:
-                name: baidu
+                name: baiducloud
                 key: token
 ---
 apiVersion: v1

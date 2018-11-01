@@ -12,5 +12,5 @@ spec:
         serviceDomain: "cluster.local"
     providerConfig:
       value:
-        apiVersion: "baiduproviderconfig/v1alpha1"
-        kind: "BaiduClusterProviderConfig"
+        apiVersion: "baiducloudproviderconfig/v1alpha1"
+        kind: "BaiduCloudClusterProviderConfig"
