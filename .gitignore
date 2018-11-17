@@ -11,5 +11,10 @@ bin
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+clusterctl
+manager
 
-.idea
+.idea/
+.vscode/
+
+vendor/
