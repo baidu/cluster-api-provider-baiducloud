@@ -1,0 +1,39 @@
+apiVersion: cluster.k8s.io/v1alpha1
+kind: Machine
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: machine-sample-master
+spec:
+  providerConfig:
+    value:
+      apiVersion: "cceproviderconfig/v1alpha1"
+      kind: "CCEMachineProviderConfig"
+      role: "master"
+      adminPass: "admin@123"
+      imageId: "m-JRs1Yseb" # centos-7u4-x86_64
+      cpuCount: 2
+      memoryCapacityInGB: 2
+  versions:
+    kubelet: 1.11.1
+    controlPlane: 1.11.1
+---
+apiVersion: cluster.k8s.io/v1alpha1
+kind: Machine
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: machine-sample-node
+spec:
+  providerConfig:
+    value:
+      apiVersion: "cceproviderconfig/v1alpha1"
+      kind: "CCEMachineProviderConfig"
+      role: "node"
+      adminPass: "admin@123"
+      imageId: "m-JRs1Yseb"
+      cpuCount: 2
+      memoryCapacityInGB: 2
+  versions:
+    kubelet: 1.11.1
+    controlPlane: 1.11.1

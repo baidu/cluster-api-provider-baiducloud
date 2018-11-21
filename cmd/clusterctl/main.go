@@ -14,10 +14,20 @@ limitations under the License.
 package main
 
 import (
-	_ "sigs.k8s.io/cluster-api-provider-baiducloud/pkg/cloud/baiducloud"
-	"sigs.k8s.io/cluster-api/clusterctl/cmd"
+	"github.com/golang/glog"
+
+	"sigs.k8s.io/cluster-api-provider-baiducloud/pkg/cloud/baiducloud"
+	"sigs.k8s.io/cluster-api/cmd/clusterctl/cmd"
+	clustercommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
 )
 
 func main() {
+	var err error
+	baiducloud.MachineActuator, err = baiducloud.NewMachineActuator(baiducloud.MachineActuatorParams{})
+	if err != nil {
+		glog.Fatalf("Error creating cluster provisioner for baiducloud: %v", err)
+	}
+
+	clustercommon.RegisterClusterProvisioner(baiducloud.ProviderName, baiducloud.MachineActuator)
 	cmd.Execute()
 }
