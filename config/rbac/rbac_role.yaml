@@ -1,15 +1,62 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: clusterapi-manager
+  creationTimestamp: null
+  name: manager-role
 rules:
 - apiGroups:
-  - cluster.k8s.io
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - cceproviderconfig.k8s.io
   resources:
   - clusters
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - cceproviderconfig.k8s.io
+  resources:
   - machines
-  - machinedeployments
-  - machinesets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs:
   - get
   - list
@@ -21,8 +68,19 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - nodes
-  - events
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - services
   verbs:
   - get
   - list
