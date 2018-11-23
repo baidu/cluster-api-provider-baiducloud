@@ -19,13 +19,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/golang/glog"
+
 	"github.com/baidu/baiducloud-sdk-go/bcc"
 	"github.com/baidu/baiducloud-sdk-go/bce"
 	"github.com/baidu/baiducloud-sdk-go/billing"
 	"github.com/baidu/baiducloud-sdk-go/clientset"
-	"github.com/golang/glog"
 
-	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ccecfgV1alpha1 "sigs.k8s.io/cluster-api-provider-baiducloud/pkg/apis/cceproviderconfig/v1alpha1"
@@ -106,7 +107,7 @@ func (cce *CCEClient) Create(ctx context.Context, cluster *clusterv1.Cluster, ma
 		glog.Infof("Skipped creating a VM that already exists, instanceID %s", instance.InstanceID)
 	}
 
-	machineCfg, err := machineProviderFromProviderConfig(machine.Spec.ProviderConfig)
+	machineCfg, err := machineProviderFromProviderConfig(machine.Spec.ProviderSpec)
 	if err != nil {
 		glog.Errorf("parse machine config err: %s", err.Error())
 		return err
@@ -137,6 +138,9 @@ func (cce *CCEClient) Create(ctx context.Context, cluster *clusterv1.Cluster, ma
 	}
 
 	glog.Infof("Created a new VM, instanceID %s", instanceIDs[0])
+	if machine.ObjectMeta.Annotations == nil {
+		machine.ObjectMeta.Annotations = map[string]string{}
+	}
 	machine.ObjectMeta.Annotations[TagInstanceID] = instanceIDs[0]
 	machine.ObjectMeta.Annotations[TagInstanceStatus] = "Created"
 	machine.ObjectMeta.Annotations[TagInstanceAdminPass] = machineCfg.AdminPass
@@ -163,12 +167,12 @@ func (cce *CCEClient) Delete(ctx context.Context, cluster *clusterv1.Cluster, ma
 	if err != nil {
 		return err
 	}
-	if instance == nil {
+	if instance == nil || len(instance.CreationTime) == 0 {
 		glog.Infof("Skipped delete a VM that already does not exist")
 		return nil
 	}
 	if err := cce.computeService.Bcc().DeleteInstance(instance.InstanceID, nil); err != nil {
-		glog.Error("delete instance %s err: %+v", instance.InstanceID, err)
+		glog.Errorf("delete instance %s err: %+v", instance.InstanceID, err)
 		return err
 	}
 	time.Sleep(3 * time.Second)
@@ -214,7 +218,9 @@ func (cce *CCEClient) instanceIfExists(cluster *clusterv1.Cluster, machine *clus
 		glog.Errorf("DescribeInstance err: %+v", err.Error())
 		berr, ok := err.(*bce.Error)
 		if ok && berr.StatusCode == 404 {
-			return nil, nil
+			return &bcc.Instance{
+				InstanceID: targetInstanceID,
+			}, nil
 		}
 		return nil, err
 	}
@@ -241,7 +247,7 @@ func getOrNewComputeServiceForMachine(params MachineActuatorParams) (CCEClientCo
 	return clientSet, nil
 }
 
-func machineProviderFromProviderConfig(providerConfig clusterv1.ProviderConfig) (*ccecfgV1alpha1.CCEMachineProviderConfig, error) {
+func machineProviderFromProviderConfig(providerConfig clusterv1.ProviderSpec) (*ccecfgV1alpha1.CCEMachineProviderConfig, error) {
 	var config ccecfgV1alpha1.CCEMachineProviderConfig
 	if err := yaml.Unmarshal(providerConfig.Value.Raw, &config); err != nil {
 		return nil, err
