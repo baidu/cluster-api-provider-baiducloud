@@ -12,7 +12,7 @@ spec:
       labels:
         foo: bar
     spec:
-      providerConfig:
+      providerSpec:
         value:
           apiVersion: "cceproviderconfig/v1alpha1"
           kind: "CCEMachineProviderConfig"

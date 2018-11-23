@@ -10,7 +10,7 @@ import:
 - package: k8s.io/client-go
   version: kubernetes-1.11.0
 - package: sigs.k8s.io/cluster-api
-  version: master 
+  version: master
 - package: sigs.k8s.io/controller-runtime
   version: v0.1.4
 - package: k8s.io/code-generator/cmd/deepcopy-gen
@@ -21,3 +21,4 @@ import:
 - package: github.com/spf13/pflag
   version: v1.0.3
 - package: github.com/ghodss/yaml
+- package: github.com/onsi/gomega

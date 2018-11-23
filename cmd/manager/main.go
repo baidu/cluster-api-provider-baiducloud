@@ -18,69 +18,72 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/golang/glog"
+
 	"sigs.k8s.io/cluster-api-provider-baiducloud/pkg/apis"
 	"sigs.k8s.io/cluster-api-provider-baiducloud/pkg/cloud/baiducloud"
 	"sigs.k8s.io/cluster-api-provider-baiducloud/pkg/controller"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"sigs.k8s.io/cluster-api-provider-baiducloud/pkg/webhook"
 
 	clusterapis "sigs.k8s.io/cluster-api/pkg/apis"
 	clustercommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
-	"os"
 )
 
 func main() {
-	logf.SetLogger(logf.ZapLogger(false))
-	log := logf.Log.WithName("entrypoint")
-
 	// Get a config to talk to the apiserver
-	log.Info("setting up client for manager")
+	glog.Info("setting up client for manager")
 	cfg, err := config.GetConfig()
 	if err != nil {
-		log.Error(err, "unable to set up client config")
+		glog.Error(err, "unable to set up client config")
 		os.Exit(1)
 	}
 
 	// Create a new Cmd to provide shared dependencies and start components
-	log.Info("setting up manager")
+	glog.Info("setting up manager")
+	flag.Parse()
 	mgr, err := manager.New(cfg, manager.Options{})
 	if err != nil {
-		log.Error(err, "unable to set up overall controller manager")
+		glog.Error(err, "unable to set up overall controller manager")
 		os.Exit(1)
 	}
 
-	log.Info("Registering Components.")
+	glog.Info("Registering Components.")
 	initStaticDeps(mgr)
 
 	// Setup Scheme for all resources
-	log.Info("setting up scheme")
+	glog.Info("setting up scheme")
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
-		log.Error(err, "unable add APIs to scheme")
+		glog.Error(err, "unable add APIs to scheme")
+		os.Exit(1)
+	}
+
+	if err := clusterapis.AddToScheme(mgr.GetScheme()); err != nil {
+		glog.Error(err, "unable add cluster APIs to scheme")
 		os.Exit(1)
 	}
 
 	// Setup all Controllers
-	log.Info("Setting up controller")
+	glog.Info("Setting up controller")
 	if err := controller.AddToManager(mgr); err != nil {
-		log.Error(err, "unable to register controllers to the manager")
+		glog.Error(err, "unable to register controllers to the manager")
 		os.Exit(1)
 	}
 
-	log.Info("setting up webhooks")
+	glog.Info("setting up webhooks")
 	if err := webhook.AddToManager(mgr); err != nil {
-		log.Error(err, "unable to register webhooks to the manager")
+		glog.Error(err, "unable to register webhooks to the manager")
 		os.Exit(1)
 	}
 
 	// Start the Cmd
-	log.Info("Starting the Cmd.")
+	glog.Info("Starting the Cmd.")
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
-		log.Error(err, "unable to run the manager")
+		glog.Error(err, "unable to run the manager")
 		os.Exit(1)
 	}
 }

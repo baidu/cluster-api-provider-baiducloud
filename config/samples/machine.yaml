@@ -5,7 +5,7 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: machine-sample-master
 spec:
-  providerConfig:
+  providerSpec:
     value:
       apiVersion: "cceproviderconfig/v1alpha1"
       kind: "CCEMachineProviderConfig"
@@ -25,7 +25,7 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: machine-sample-node
 spec:
-  providerConfig:
+  providerSpec:
     value:
       apiVersion: "cceproviderconfig/v1alpha1"
       kind: "CCEMachineProviderConfig"
