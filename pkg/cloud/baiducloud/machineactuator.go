@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ccecfgV1alpha1 "sigs.k8s.io/cluster-api-provider-baiducloud/pkg/apis/cceproviderconfig/v1alpha1"
+	"sigs.k8s.io/cluster-api-provider-baiducloud/pkg/cloud/utils"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/cluster-api/pkg/cert"
 	"sigs.k8s.io/cluster-api/pkg/kubeadm"
@@ -39,17 +41,22 @@ import (
 const (
 	ProviderName = "baidu"
 
+	TagInstanceRole      = "instanceRole"
 	TagInstanceID        = "instanceID"
 	TagInstanceStatus    = "instanceStatus"
 	TagInstanceAdminPass = "instanceAdminPass"
 	TagKubeletVersion    = "kubelet-version"
 
+	TagClusterToken     = "clusterToken"
 	TagMasterInstanceID = "masterInstanceID"
 	TagMasterIP         = "masterIP"
 )
 
+// MachineActuator is the client of cloud provider baidu
 var MachineActuator *CCEClient
 
+// SSHCreds ssh credentials
+// TODO
 type SSHCreds struct {
 	user           string
 	privateKeyPath string
@@ -92,6 +99,7 @@ func NewMachineActuator(params MachineActuatorParams) (*CCEClient, error) {
 		client:         params.Client,
 		eventRecorder:  params.EventRecorder,
 		scheme:         params.Scheme,
+		kubeadm:        getOrNewKubeadm(params),
 	}, nil
 }
 
@@ -120,11 +128,12 @@ func (cce *CCEClient) Create(ctx context.Context, cluster *clusterv1.Cluster, ma
 		Billing: billing.Billing{
 			PaymentTiming: "Postpaid",
 		},
-		CPUCount:           machineCfg.CPUCount,
-		MemoryCapacityInGB: machineCfg.MemoryCapacityInGB,
-		AdminPass:          machineCfg.AdminPass,
-		PurchaseCount:      1,
-		// InstanceType:       "10", // common 3 // TODO
+		CPUCount:              machineCfg.CPUCount,
+		MemoryCapacityInGB:    machineCfg.MemoryCapacityInGB,
+		AdminPass:             machineCfg.AdminPass,
+		PurchaseCount:         1,
+		InstanceType:          "N3", // common 3
+		NetworkCapacityInMbps: 1,    //EIP bandwidth
 	}
 
 	// TODO support different regions
@@ -141,22 +150,75 @@ func (cce *CCEClient) Create(ctx context.Context, cluster *clusterv1.Cluster, ma
 	if machine.ObjectMeta.Annotations == nil {
 		machine.ObjectMeta.Annotations = map[string]string{}
 	}
+	if cluster.ObjectMeta.Annotations == nil {
+		cluster.ObjectMeta.Annotations = map[string]string{}
+	}
 	machine.ObjectMeta.Annotations[TagInstanceID] = instanceIDs[0]
 	machine.ObjectMeta.Annotations[TagInstanceStatus] = "Created"
 	machine.ObjectMeta.Annotations[TagInstanceAdminPass] = machineCfg.AdminPass
 	machine.ObjectMeta.Annotations[TagKubeletVersion] = machine.Spec.Versions.Kubelet
-	glog.V(4).Infof("new machine: %+v", machine.Name)
-	cce.client.Update(context.Background(), machine)
+
+	token, err := cce.getKubeadmToken()
+	if err != nil {
+		glog.Errorf("getKubeadmToken err: %+v", err)
+		return err
+	}
 
 	if machineCfg.Role == "master" {
 		cluster.ObjectMeta.Annotations[TagMasterInstanceID] = instanceIDs[0]
-		cce.client.Update(context.Background(), cluster)
+		cluster.ObjectMeta.Annotations[TagClusterToken] = token
+		machine.ObjectMeta.Annotations[TagInstanceRole] = "master"
+	} else {
+		machine.ObjectMeta.Annotations[TagInstanceRole] = "node"
 	}
 
-	// TODO deploy master
-	// TODO deploy node
+	glog.V(4).Infof("new machine: %+v", machine.Name)
+	cce.client.Update(context.Background(), cluster)
+	cce.client.Update(context.Background(), machine)
 
+	go cce.postCreate(ctx, cluster, machine)
 	time.Sleep(3 * time.Second)
+	return nil
+}
+
+func (cce *CCEClient) postCreate(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
+	time.Sleep(3 * time.Minute)
+	instance, err := cce.instanceIfExists(cluster, machine)
+	glog.Infof("postCreate instance %s", instance.InstanceID)
+	if err != nil {
+		glog.Errorf("instanceIfExist check err: %+v", err)
+		return err
+	}
+	role := machine.ObjectMeta.Annotations[TagInstanceRole]
+	adminPass := machine.ObjectMeta.Annotations[TagInstanceAdminPass]
+
+	var startupScript string
+	if role == "master" {
+		startupScript = utils.MasterStartup
+	} else {
+		startupScript = utils.NodeStartup
+		// TODO installation of node is mush more faster, check master status
+		time.Sleep(3 * time.Minute)
+	}
+
+	masterInstance, err := cce.computeService.Bcc().DescribeInstance(cluster.ObjectMeta.Annotations[TagMasterInstanceID], nil)
+	if err != nil {
+		return err
+	}
+	startupScript = strings.Replace(startupScript, "__VERSION__", machine.Spec.Versions.ControlPlane, 1)
+	startupScript = strings.Replace(startupScript, "__SVC_CIDR__", cluster.Spec.ClusterNetwork.Services.CIDRBlocks[0], 1)
+	startupScript = strings.Replace(startupScript, "__POD_CIDR__", cluster.Spec.ClusterNetwork.Pods.CIDRBlocks[0], 1)
+	startupScript = strings.Replace(startupScript, "__PUBLICIP__", instance.PublicIP, 1)
+	startupScript = strings.Replace(startupScript, "__MACHINE__", instance.InstanceID, 1)
+	startupScript = strings.Replace(startupScript, "__TOKEN__", cluster.ObjectMeta.Annotations[TagClusterToken], 1)
+	startupScript = strings.Replace(startupScript, "__MASTER__", masterInstance.InternalIP, 1)
+
+	res, err := utils.RemoteSSHCommand("root", instance.PublicIP, adminPass, startupScript)
+	if err != nil {
+		glog.Errorf("deploy %+v", err)
+		return err
+	}
+	glog.Infof("postCreate result: %s", res)
 	return nil
 }
 
@@ -227,6 +289,18 @@ func (cce *CCEClient) instanceIfExists(cluster *clusterv1.Cluster, machine *clus
 	return instance, nil
 }
 
+func (cce *CCEClient) getKubeadmToken() (string, error) {
+	// TODO generate random token
+	return "abcdef.0123456789abcdef", nil
+}
+
+func getOrNewKubeadm(params MachineActuatorParams) CCEClientKubeadm {
+	if params.Kubeadm == nil {
+		return kubeadm.New()
+	}
+	return params.Kubeadm
+}
+
 func getOrNewComputeServiceForMachine(params MachineActuatorParams) (CCEClientComputeService, error) {
 	glog.V(4).Infof("create compute service")
 	if params.ComputeService != nil {
@@ -238,7 +312,7 @@ func getOrNewComputeServiceForMachine(params MachineActuatorParams) (CCEClientCo
 		SecretAccessKey: os.Getenv("SecretAccessKey"),
 	}
 	cfg := bce.NewConfig(credential)
-	cfg.Region = "bj"
+	cfg.Region = "hk"
 	clientSet, err := clientset.NewFromConfig(cfg)
 	if err != nil {
 		return nil, err

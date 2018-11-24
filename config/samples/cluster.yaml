@@ -5,9 +5,9 @@ metadata:
 spec:
     clusterNetwork:
         services:
-            cidrBlocks: ["10.96.0.0/12"]
+            cidrBlocks: ["10.96.0.0/16"]
         pods:
-            cidrBlocks: ["192.168.0.0/16"]
+            cidrBlocks: ["100.10.0.0/16"]
         serviceDomain: "cluster.local"
     providerSpec:
       value:
@@ -15,6 +15,3 @@ spec:
         kind: "CCEClusterProviderConfig"
         clusterName: "cluster-test3"
         clusterCIDR: "172.30.0.0/19"
-        clusterVersion: "1.10.5"
-        vpcId: "vpc-iueiposq"
-        region: "ap-beijing"

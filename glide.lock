@@ -1,13 +1,8 @@
 hash: c88fe5d63559c945db12a811f34e2c466c94262fc370c7455b20edfbabbc78ca
-updated: 2018-11-22T14:32:31.015793+08:00
+updated: 2018-11-24T09:32:22.127584+08:00
 imports:
-- name: cloud.google.com/go
-  version: 3b1ae45394a234c385be014e9a488f2bb6eef821
-  subpackages:
-  - compute/metadata
-  - internal
 - name: github.com/baidu/baiducloud-sdk-go
-  version: 2c02a65615005a7027745035cc3ee346407d5855
+  version: 3d7d625775026c13eeb85e1680c367fdfcdfb5b5
   subpackages:
   - bcc
   - bce
@@ -122,9 +117,9 @@ imports:
 - name: github.com/spf13/pflag
   version: 298182f68c66c05229eb03ac171abe6e309ee79a
 - name: go.uber.org/atomic
-  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
+  version: 8dc6146f7569370a472715e178d8ae31172ee6da
 - name: go.uber.org/multierr
-  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+  version: ddea229ff1dff9e6fe8a6c0344ac73b09e81fce5
 - name: go.uber.org/zap
   version: 67bc79d13d155c02fd008f721863ff8cc5f30659
   subpackages:
@@ -141,7 +136,6 @@ imports:
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
   - context
-  - context/ctxhttp
   - html
   - html/atom
   - html/charset
@@ -149,13 +143,7 @@ imports:
   - http2/hpack
   - idna
   - lex/httplex
-- name: golang.org/x/oauth2
-  version: a6bd8cefa1811bd24b86f8902872e4e8225f74c4
-  subpackages:
-  - google
-  - internal
-  - jws
-  - jwt
+  - websocket
 - name: golang.org/x/sys
   version: 95c6576299259db960f6c5b9b69ea52422860fce
   subpackages:
@@ -187,19 +175,7 @@ imports:
   subpackages:
   - rate
 - name: golang.org/x/tools
-  version: 91f80e683c10fea00e7f965a1a7cac482ce52541
-- name: google.golang.org/appengine
-  version: 4a4468ece617fc8205e99368fa2200e9d1fad421
-  subpackages:
-  - internal
-  - internal/app_identity
-  - internal/base
-  - internal/datastore
-  - internal/log
-  - internal/modules
-  - internal/remote_api
-  - internal/urlfetch
-  - urlfetch
+  version: 04b5d21e00f1f47bd824a6ade581e7189bacde87
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: gopkg.in/yaml.v2
@@ -332,11 +308,9 @@ imports:
   - pkg/apis/clientauthentication/v1beta1
   - pkg/version
   - plugin/pkg/client/auth/exec
-  - plugin/pkg/client/auth/gcp
   - rest
   - rest/watch
   - restmapper
-  - third_party/forked/golang/template
   - tools/auth
   - tools/cache
   - tools/clientcmd
@@ -356,7 +330,6 @@ imports:
   - util/flowcontrol
   - util/homedir
   - util/integer
-  - util/jsonpath
   - util/retry
   - util/workqueue
 - name: k8s.io/code-generator
