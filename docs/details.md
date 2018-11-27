@@ -117,6 +117,8 @@ spec:
 ~ glide install --trip-vendor
 ~ go build -o manager sigs.k8s.io/cluster-api-provider-baiducloud/cmd/manager
 ~ export SecretAccessKey=YOUR_ACCESS_KEY && export AccessKeyID=YOUR_KEY_ID
+~ kubectl apply -f config/crds/cluster.yaml
+~ kubectl apply -f config/crds/machine.yaml
 ~ ./manager -kubeconfig ~/.kube/config -alsologtostderr -v 4
 ```
 
