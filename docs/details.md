@@ -108,3 +108,21 @@ spec:
       controlPlane: 1.11.3
       kubelet: 1.11.3
 ```
+
+### Demo
+
+#### Build & Run manager
+
+```bash
+~ glide install --trip-vendor
+~ go build -o manager sigs.k8s.io/cluster-api-provider-baiducloud/cmd/manager
+~ export SecretAccessKey=YOUR_ACCESS_KEY && export AccessKeyID=YOUR_KEY_ID
+~ ./manager -kubeconfig ~/.kube/config -alsologtostderr -v 4
+```
+
+#### Run an example
+
+```bash
+~ kubectl apply -f config/samples/cluster.yaml
+~ kubectl apply -f config/samples/machine.yaml
+```
