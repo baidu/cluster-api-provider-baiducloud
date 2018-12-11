@@ -45,8 +45,9 @@ import (
 type CCEMachineProviderConfig struct {
 	metav1.TypeMeta `json:",inline"`
 
-	Role      string `json:"role"` // master or node
-	ClusterID string `json:"clusterId"`
+	Role        string `json:"role"` // master or node
+	ClusterID   string `json:"clusterId"`
+	ClusterName string `json:"clusterName"`
 
 	ImageID               string `json:"imageId"`
 	CPUCount              int    `json:"cpuCount"`

@@ -64,6 +64,10 @@ apt-get install -y \
     kubeadm=${KUBEADM}
 chmod a+rx /usr/bin/kubeadm
 
+# function cleanMaster() {
+#
+# }
+
 # Override network args to use kubenet instead of cni, override Kubelet DNS args and
 # add cloud provider args.
 cat > /etc/default/kubelet <<EOF
@@ -143,7 +147,7 @@ function install_configure_docker () {
     echo "exit 101" > /usr/sbin/policy-rc.d
     chmod +x /usr/sbin/policy-rc.d
     trap "rm /usr/sbin/policy-rc.d" RETURN
-    apt-get install -y docker-engine=1.12.0-0~xenial
+    apt-get install -y docker.io
     echo 'DOCKER_OPTS="--iptables=false --ip-masq=false"' > /etc/default/docker
     systemctl daemon-reload
     systemctl enable docker

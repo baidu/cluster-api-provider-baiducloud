@@ -29,6 +29,8 @@ import (
 
 	clusterapis "sigs.k8s.io/cluster-api/pkg/apis"
 	clustercommon "sigs.k8s.io/cluster-api/pkg/apis/cluster/common"
+	"sigs.k8s.io/cluster-api/pkg/controller/machinedeployment"
+	"sigs.k8s.io/cluster-api/pkg/controller/machineset"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
@@ -71,6 +73,18 @@ func main() {
 	glog.Info("Setting up controller")
 	if err := controller.AddToManager(mgr); err != nil {
 		glog.Error(err, "unable to register controllers to the manager")
+		os.Exit(1)
+	}
+
+	glog.Info("Setting up machineset")
+	if err := machineset.Add(mgr); err != nil {
+		glog.Error(err, "unable to register machineset to the manager")
+		os.Exit(1)
+	}
+
+	glog.Info("Setting up machinedeloyment")
+	if err := machinedeployment.Add(mgr); err != nil {
+		glog.Error(err, "unable to register machinedeployment to the manager")
 		os.Exit(1)
 	}
 
