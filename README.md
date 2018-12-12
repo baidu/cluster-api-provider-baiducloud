@@ -30,6 +30,8 @@ We just assume that you currently have a running Kubernetes cluster locally or i
 ~ export SecretAccessKey=YOUR_ACCESS_KEY && export AccessKeyID=YOUR_KEY_ID
 ~ kubectl apply -f config/crds/cluster.yaml
 ~ kubectl apply -f config/crds/machine.yaml
+~ kubectl apply -f config/crds/machineset.yaml
+~ kubectl apply -f config/crds/machinedeployment.yaml
 ~ ./manager -kubeconfig ~/.kube/config -alsologtostderr -v 4
 ```
 
@@ -37,7 +39,7 @@ We just assume that you currently have a running Kubernetes cluster locally or i
 
 ```bash
 ~ kubectl apply -f config/samples/cluster.yaml
-~ kubectl apply -f config/samples/machine.yaml
+~ kubectl apply -f config/samples/machinedeployments.yaml
 ```
 
 ## Usage
@@ -65,46 +67,74 @@ spec:
         clusterCIDR: "172.30.0.0/19"
 ```
 
-### Machine Resource Creation Example
+### MachineDeployment Resource Creation Example
 
 ```bash
-apiVersion: cluster.k8s.io/v1alpha1
-kind: Machine
+apiVersion: "cluster.k8s.io/v1alpha1"
+kind: MachineDeployment
 metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: machine-sample-master
+  name: sample-master
 spec:
-  providerSpec:
-    value:
-      apiVersion: "cceproviderconfig/v1alpha1"
-      kind: "CCEMachineProviderConfig"
-      role: "master"
-      adminPass: "admin@123"
-      imageId: "m-0zujrHwB" # ubuntu 16.04 lts amd64 
-      cpuCount: 2
-      memoryCapacityInGB: 2
-  versions:
-    kubelet: 1.12.2
-    controlPlane: 1.12.2
+  replicas: 1
+  selector:
+    matchLabels:
+      foo: bar
+  template:
+    metadata:
+      labels:
+        foo: bar
+    spec:
+      providerSpec:
+        value:
+          apiVersion: "cceproviderconfig/v1alpha1"
+          kind: "CCEMachineProviderConfig"
+          clusterName: "cluster-test3"
+          role: "master"
+          adminPass: "testpw123!"
+          imageId: "m-8WV4kRlN" # ubuntu 16.04 lts amd64
+          cpuCount: 2
+          memoryCapacityInGB: 2
+      versions:
+        kubelet: 1.12.3
+        controlPlane: 1.12.3
+  strategy:
+    type: "RollingUpdate"
+    rollingUpdate:
+      maxUnavailable: "30%"
+      maxSurge: "30%"
+  minReadySeconds: 2
 ---
-apiVersion: cluster.k8s.io/v1alpha1
-kind: Machine
+apiVersion: "cluster.k8s.io/v1alpha1"
+kind: MachineDeployment
 metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: machine-sample-node
+  name: sample-nodes
 spec:
-  providerSpec:
-    value:
-      apiVersion: "cceproviderconfig/v1alpha1"
-      kind: "CCEMachineProviderConfig"
-      role: "node"
-      adminPass: "admin@123"
-      imageId: "m-0zujrHwB"
-      cpuCount: 2
-      memoryCapacityInGB: 2
-  versions:
-    kubelet: 1.12.2
-    controlPlane: 1.12.2
+  replicas: 3
+  selector:
+    matchLabels:
+      foo: bar
+  template:
+    metadata:
+      labels:
+        foo: bar
+    spec:
+      providerSpec:
+        value:
+          apiVersion: "cceproviderconfig/v1alpha1"
+          kind: "CCEMachineProviderConfig"
+          clusterName: "cluster-test3"
+          role: "node"
+          adminPass: "testpw123!"
+          imageId: "m-8WV4kRlN"
+          cpuCount: 2
+          memoryCapacityInGB: 2
+      versions:
+        kubelet: 1.12.3
+  strategy:
+    type: "RollingUpdate"
+    rollingUpdate:
+      maxUnavailable: "30%"
+      maxSurge: "30%"
+  minReadySeconds: 2
+
 ```

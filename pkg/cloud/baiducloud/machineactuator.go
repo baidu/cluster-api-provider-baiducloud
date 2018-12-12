@@ -16,6 +16,7 @@ package baiducloud
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -28,7 +29,11 @@ import (
 	"github.com/baidu/baiducloud-sdk-go/billing"
 	"github.com/baidu/baiducloud-sdk-go/clientset"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 	ccecfgV1alpha1 "sigs.k8s.io/cluster-api-provider-baiducloud/pkg/apis/cceproviderconfig/v1alpha1"
 	"sigs.k8s.io/cluster-api-provider-baiducloud/pkg/cloud/utils"
@@ -123,7 +128,7 @@ func (cce *CCEClient) Create(ctx context.Context, cluster *clusterv1.Cluster, ma
 	glog.V(4).Infof("machine config: %+v", machineCfg)
 
 	bccArgs := &bcc.CreateInstanceArgs{
-		Name:    "cluster-api-" + machineCfg.Role,
+		Name:    machine.Name,
 		ImageID: machineCfg.ImageID, // ubuntu-16.04-amd64
 		Billing: billing.Billing{
 			PaymentTiming: "Postpaid",
@@ -132,7 +137,7 @@ func (cce *CCEClient) Create(ctx context.Context, cluster *clusterv1.Cluster, ma
 		MemoryCapacityInGB:    machineCfg.MemoryCapacityInGB,
 		AdminPass:             machineCfg.AdminPass,
 		PurchaseCount:         1,
-		InstanceType:          "N3", // common 3
+		InstanceType:          "N3", // Normal 3
 		NetworkCapacityInMbps: 1,    //EIP bandwidth
 	}
 
@@ -172,23 +177,34 @@ func (cce *CCEClient) Create(ctx context.Context, cluster *clusterv1.Cluster, ma
 		machine.ObjectMeta.Annotations[TagInstanceRole] = "node"
 	}
 
-	glog.V(4).Infof("new machine: %+v", machine.Name)
+	glog.V(4).Infof("new machine: %+v, annotation %+v", machine.Name, machine.Annotations)
 	cce.client.Update(context.Background(), cluster)
 	cce.client.Update(context.Background(), machine)
 
+	// TODO rewrite
 	go cce.postCreate(ctx, cluster, machine)
-	time.Sleep(3 * time.Second)
 	return nil
 }
 
 func (cce *CCEClient) postCreate(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	time.Sleep(3 * time.Minute)
-	instance, err := cce.instanceIfExists(cluster, machine)
-	glog.Infof("postCreate instance %s", instance.InstanceID)
-	if err != nil {
-		glog.Errorf("instanceIfExist check err: %+v", err)
-		return err
+	// check instance status
+	var instanceStatusErr error
+	var instance *bcc.Instance
+	for i := 0; i < 10; i++ {
+		time.Sleep(30 * time.Second)
+		instance, instanceStatusErr = cce.instanceIfExists(cluster, machine)
+		if instanceStatusErr == nil && instance.Status == "Running" {
+			break
+		}
+		glog.V(4).Infof("check instance, pass %d, status, %s, err %+v", i, instance.Status, instanceStatusErr)
 	}
+
+	if instanceStatusErr != nil {
+		glog.Errorf("instanceIfExist check err: %+v", instanceStatusErr)
+		return instanceStatusErr
+	}
+	glog.Infof("postCreate instance %s, status %s", instance.InstanceID, instance.Status)
+
 	role := machine.ObjectMeta.Annotations[TagInstanceRole]
 	adminPass := machine.ObjectMeta.Annotations[TagInstanceAdminPass]
 
@@ -198,14 +214,15 @@ func (cce *CCEClient) postCreate(ctx context.Context, cluster *clusterv1.Cluster
 	} else {
 		startupScript = utils.NodeStartup
 		// TODO installation of node is mush more faster, check master status
-		time.Sleep(3 * time.Minute)
+		// time.Sleep(3 * time.Minute)
 	}
 
 	masterInstance, err := cce.computeService.Bcc().DescribeInstance(cluster.ObjectMeta.Annotations[TagMasterInstanceID], nil)
 	if err != nil {
 		return err
 	}
-	startupScript = strings.Replace(startupScript, "__VERSION__", machine.Spec.Versions.ControlPlane, 1)
+	glog.V(4).Info("master id %s, info %+v", cluster.ObjectMeta.Annotations[TagMasterInstanceID], masterInstance)
+	startupScript = strings.Replace(startupScript, "__VERSION__", machine.Spec.Versions.Kubelet, 1) // TODO controlPlane and kubelet versions can be different
 	startupScript = strings.Replace(startupScript, "__SVC_CIDR__", cluster.Spec.ClusterNetwork.Services.CIDRBlocks[0], 1)
 	startupScript = strings.Replace(startupScript, "__POD_CIDR__", cluster.Spec.ClusterNetwork.Pods.CIDRBlocks[0], 1)
 	startupScript = strings.Replace(startupScript, "__PUBLICIP__", instance.PublicIP, 1)
@@ -213,7 +230,7 @@ func (cce *CCEClient) postCreate(ctx context.Context, cluster *clusterv1.Cluster
 	startupScript = strings.Replace(startupScript, "__TOKEN__", cluster.ObjectMeta.Annotations[TagClusterToken], 1)
 	startupScript = strings.Replace(startupScript, "__MASTER__", masterInstance.InternalIP, 1)
 
-	res, err := utils.RemoteSSHCommand("root", instance.PublicIP, adminPass, startupScript)
+	res, err := utils.RemoteSSHBashScript("root", instance.PublicIP, adminPass, startupScript)
 	if err != nil {
 		glog.Errorf("deploy %+v", err)
 		return err
@@ -224,7 +241,19 @@ func (cce *CCEClient) postCreate(ctx context.Context, cluster *clusterv1.Cluster
 
 // Delete cleans a node
 func (cce *CCEClient) Delete(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	glog.V(4).Infof("Delete machine: %+v", machine.Name)
+	glog.V(4).Info("Delete node: %s", machine.Name)
+	kubeclient, err := cce.getKubeClient(cluster)
+	if err != nil {
+		return err
+	}
+
+	if err := kubeclient.CoreV1().Nodes().Delete(machine.Name, &metav1.DeleteOptions{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	glog.V(4).Infof("Release machine: %s", machine.Name)
 	instance, err := cce.instanceIfExists(cluster, machine)
 	if err != nil {
 		return err
@@ -253,7 +282,7 @@ func (cce *CCEClient) Exists(ctx context.Context, cluster *clusterv1.Cluster, ma
 
 // Update updates the some machine
 func (cce *CCEClient) Update(ctx context.Context, cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
-	// TODO
+	glog.V(4).Infof("Update machine: %+v", machine.Name)
 	return nil
 }
 
@@ -265,8 +294,19 @@ func (cce *CCEClient) GetIP(cluster *clusterv1.Cluster, machine *clusterv1.Machi
 
 // GetKubeConfig returns config of some mahine
 func (cce *CCEClient) GetKubeConfig(cluster *clusterv1.Cluster, master *clusterv1.Machine) (string, error) {
-	// TODO
-	return "", nil
+	// TODO store some basic info in machine struct
+	// masterIntance, err := cce.instanceIfExists(cluster, master)
+	masterInstanceID := cluster.ObjectMeta.Annotations[TagMasterInstanceID]
+	masterInstance, err := cce.computeService.Bcc().DescribeInstance(masterInstanceID, nil)
+	if err != nil {
+		return "", err
+	}
+	return utils.RemoteSSHCommand("root", masterInstance.PublicIP, "testpw123!", "cat /root/.kube/config")
+}
+
+func (cce *CCEClient) nodeIfExists(cluster *clusterv1.Cluster, machine *clusterv1.Machine) error {
+	// check if the node exists in the cluster
+	return nil
 }
 
 func (cce *CCEClient) instanceIfExists(cluster *clusterv1.Cluster, machine *clusterv1.Machine) (*bcc.Instance, error) {
@@ -292,6 +332,35 @@ func (cce *CCEClient) instanceIfExists(cluster *clusterv1.Cluster, machine *clus
 func (cce *CCEClient) getKubeadmToken() (string, error) {
 	// TODO generate random token
 	return "abcdef.0123456789abcdef", nil
+}
+
+func (cce *CCEClient) getKubeClient(cluster *clusterv1.Cluster) (kubernetes.Interface, error) {
+	// TODO get master
+	configContent, err := cce.GetKubeConfig(cluster, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	tmpDir, err := ioutil.TempDir("/tmp", cluster.ClusterName)
+	if err != nil {
+		return nil, fmt.Errorf("Create tmp dir failed: '%v'", err)
+	}
+	defer os.Remove(tmpDir)
+	cfgfile, err := ioutil.TempFile(tmpDir, "config")
+	if err != nil {
+		return nil, fmt.Errorf("Create tmp config file failed: '%v'", err)
+	}
+	defer os.Remove(cfgfile.Name())
+	if err := ioutil.WriteFile(cfgfile.Name(), []byte(configContent), 0644); err != nil {
+		return nil, err
+	}
+
+	cfg, err := clientcmd.BuildConfigFromFlags("", cfgfile.Name())
+	if err != nil {
+		return nil, err
+	}
+
+	return kubernetes.NewForConfig(cfg)
 }
 
 func getOrNewKubeadm(params MachineActuatorParams) CCEClientKubeadm {

@@ -29,7 +29,8 @@ type CCEClusterProviderConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	ClusterName    string `json:"clusterName"`
+	ClusterID      string `json:"clusterId"`   // system-generated cluster id
+	ClusterName    string `json:"clusterName"` // user-defined cluster name
 	ClusterCIDR    string `json:"clusterCIDR"`
 	ClusterVersion string `json:"clusterVersion"`
 	VpcID          string `json:"vpcId"`
