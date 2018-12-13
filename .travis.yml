@@ -1,0 +1,17 @@
+language: go
+sudo: false
+
+matrix:
+  include:
+    - go: 1.10.x
+    - go: 1.11.x
+    - go: tip
+install:
+  - curl https://glide.sh/get | sh
+script:
+  - mkdir -p $GOPATH/src/sigs.k8s.io 
+  - mv $GOPATH/src/github.com/baidu/cluster-api-provider-baiducloud $GOPATH/src/sigs.k8s.io/
+  - cd $GOPATH/src/sigs.k8s.io/cluster-api-provider-baiducloud
+  - glide install --strip-vendor
+  - go build -o manager sigs.k8s.io/cluster-api-provider-baiducloud/cmd/manager
+  - diff -u <(echo -n) <(gofmt -d -s $(go list ./... | grep -v vendor | awk -F '/' '{print $4}'))
