@@ -1,5 +1,8 @@
 # Cluster Api Provider Baiducloud
 
+[![Build Status](https://travis-ci.org/baidu/cluster-api-provider-baiducloud.svg?branch=master)](https://travis-ci.org/baidu/cluster-api-provider-baiducloud)
+[![Go Report Card](https://goreportcard.com/badge/github.com/baidu/cluster-api-provider-baiducloud)](https://goreportcard.com/report/github.com/baidu/cluster-api-provider-baiducloud)
+
 ## Components
 
 ### Binaries
